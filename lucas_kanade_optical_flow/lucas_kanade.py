@@ -1,4 +1,5 @@
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 from scipy import signal
@@ -303,9 +304,60 @@ def lucas_kanade_video_stabilization(input_video_path: str,
        (7) Do not forget to gracefully close all VideoCapture and to destroy
        all windows.
     """
-    """INSERT YOUR CODE HERE."""
-    pass
+    input_video = cv2.VideoCapture(input_video_path)
+    parameters = get_video_parameters(input_video)
+    # creating VideoWriter object
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    output_video = cv2.VideoWriter(output_video_path, fourcc, parameters["fps"],
+                                   (parameters["width"], parameters["height"]), isColor=False)
+    ret, first_frame = input_video.read()
+    # converting to gray-scale
+    gray_first_frame = cv2.cvtColor(first_frame, cv2.COLOR_BGR2GRAY)
+    h_factor = int(np.ceil(gray_first_frame.shape[0] / (2 ** (num_levels - 1 + 1))))
+    w_factor = int(np.ceil(gray_first_frame.shape[1] / (2 ** (num_levels - 1 + 1))))
+    IMAGE_SIZE = (w_factor * (2 ** (num_levels - 1 + 1)),
+                  h_factor * (2 ** (num_levels - 1 + 1)))
+    gray_frame = cv2.resize(gray_first_frame, IMAGE_SIZE)
+    u = np.zeros(gray_frame.shape)
+    v = np.zeros(gray_frame.shape)
+    output_video.write(gray_frame)
+    prev_frame = gray_frame
+    boundary_idx = window_size // 2
+    def generator():
+        while True:
+            yield
 
+    for idx, _ in enumerate(tqdm(generator())):  # extracting the frames
+        ret, frame = input_video.read()
+        # converting to gray-scale
+        if ret:
+            gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            gray_frame = cv2.resize(gray_frame, IMAGE_SIZE)
+            u_frame, v_frame = lucas_kanade_optical_flow(prev_frame, gray_frame, window_size, max_iter, num_levels)
+            u_frame_mean = np.mean(u_frame[boundary_idx:int(u_frame.shape[0]) - boundary_idx, boundary_idx: int(u_frame.shape[1]) - boundary_idx])
+            v_frame_mean = np.mean(v_frame[boundary_idx:int(v_frame.shape[0]) - boundary_idx, boundary_idx: int(v_frame.shape[1]) - boundary_idx])
+            u[boundary_idx:int(u_frame.shape[0]) - boundary_idx, boundary_idx: int(u_frame.shape[1]) - boundary_idx] = u_frame_mean
+            v[boundary_idx:int(v_frame.shape[0]) - boundary_idx, boundary_idx: int(v_frame.shape[1]) - boundary_idx] = v_frame_mean
+            warped_frame = warp_image(gray_frame, u, v)
+            prev_frame = gray_frame
+            output_video.write(warped_frame.astype('uint8'))
+            plt.figure()
+            plt.imshow(warped_frame, cmap='gray')
+            plt.savefig(f'./frame_num_{idx}')
+            plt.show()
+            # if idx % 10 == 0:
+            #     image_paths = ['./frame_num_0', './frame_num_1', './frame_num_2', './frame_num_3']
+            #     images = (Image.open(f) for f in image_paths)
+            #     img = next(images)
+            #     img.save(fp='/.2_after_one_lk_step.gif',
+            #              format='GIF', append_images=images, save_all=True, duration=200,
+            #              loop=0)
+        else:
+            break
+
+    input_video.release()
+    output_video.release()
+    cv2.destroyAllWindows()
 
 def faster_lucas_kanade_step(I1: np.ndarray,
                              I2: np.ndarray,
