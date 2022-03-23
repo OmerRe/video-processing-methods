@@ -4,10 +4,9 @@ from tqdm import tqdm
 from scipy import signal
 from scipy.interpolate import griddata
 
-
 # FILL IN YOUR ID
-ID1 = 123456789
-ID2 = 987654321
+ID1 = 302828991
+ID2 = 316524800
 
 
 PYRAMID_FILTER = 1.0 / 256 * np.array([[1, 4, 6, 4, 1],
@@ -68,6 +67,11 @@ def build_pyramid(image: np.ndarray, num_levels: int) -> list[np.ndarray]:
         filtered_image = signal.convolve2d(pyramid[-1], PYRAMID_FILTER, mode='same', boundary='symm')
         decimated_image = filtered_image[::2, ::2]
         pyramid.append(decimated_image)
+
+    # for ii in range(0, num_levels):
+    #     pyr_level_blur = signal.convolve2d(pyramid[ii], PYRAMID_FILTER, boundary='symm', mode='same')
+    #     pyr_level_dec = pyr_level_blur[1::2, 1::2]
+    #     pyramid.append(pyr_level_dec)
     return pyramid
 
 def lucas_kanade_step(I1: np.ndarray,
@@ -115,24 +119,24 @@ def lucas_kanade_step(I1: np.ndarray,
 
     du = np.zeros(I1.shape)
     dv = np.zeros(I1.shape)
-    ignored_idx = window_size//2
+    boundary_idx = window_size // 2
     h, w = I1.shape
 
-    for i in range(ignored_idx, h - ignored_idx):
-        for j in range(ignored_idx, w - ignored_idx):
-            Ix_window = (Ix[i-ignored_idx:i+ignored_idx+1, j-ignored_idx:j+ignored_idx+1]).reshape(
+    for i in range(boundary_idx, h - boundary_idx):
+        for j in range(boundary_idx, w - boundary_idx):
+            Ix_window = (Ix[i - boundary_idx:i + boundary_idx + 1, j - boundary_idx:j + boundary_idx + 1]).reshape(
                                    window_size*window_size, 1)
-            Iy_window = (Iy[i-ignored_idx:i+ignored_idx+1, j-ignored_idx:j+ignored_idx+1]).reshape(
+            Iy_window = (Iy[i - boundary_idx:i + boundary_idx + 1, j - boundary_idx:j + boundary_idx + 1]).reshape(
                 window_size*window_size, 1)
-            It_window = (It[i-ignored_idx:i+ignored_idx+1, j-ignored_idx:j+ignored_idx+1]).reshape(
+            It_window = (It[i - boundary_idx:i + boundary_idx + 1, j - boundary_idx:j + boundary_idx + 1]).reshape(
                 window_size*window_size, 1)
             A = np.append(Ix_window, Iy_window, axis=1)
             b = It_window
 
             try:
-                du[i, j], dv[i, j] = np.matmul(np.matmul(np.linalg.inv(np.matmul(np.transpose(A), A)),
+                du[i, j], dv[i, j] = -np.matmul(np.matmul(np.linalg.inv(np.matmul(np.transpose(A), A)),
                                                          np.transpose(A)), b)
-            except (Exception, ): #Todo: add error type
+            except np.linalg.LinAlgError: #Todo: add error type
                 pass
     return du, dv
 
@@ -167,18 +171,21 @@ def warp_image(image: np.ndarray, u: np.ndarray, v: np.ndarray) -> np.ndarray:
         image_warp: np.ndarray. Warped image.
     """
     h, w = image.shape
-    dsize = (w, h)
-    normalize_factor_u = w / u.shape[1]
-    normalize_factor_v = h / v.shape[0]
-    u_resized = cv2.resize(u, dsize) * normalize_factor_u
-    v_resized = cv2.resize(v, dsize) * normalize_factor_v
 
-    x, y = (np.meshgrid(np.arange(0, w, 1), np.arange(0, h, 1)))
+    if u.shape != image.shape:
+        normalize_factor_u = w / u.shape[1]
+        normalize_factor_v = h / v.shape[0]
+        u = cv2.resize(u, (w, h)) * normalize_factor_u
+        v = cv2.resize(v, (w, h)) * normalize_factor_v
 
-    warped_image = griddata((x.flatten(), y.flatten()), image.flatten(), (x.flatten() + u_resized.flatten(), y.flatten() + v_resized.flatten()), fill_value=np.nan)
-    indices = [i for i, x in enumerate(np.isnan(warped_image)) if x == True]
-    warped_image[indices] = image.flatten()[indices]
-    return warped_image.reshape(image.shape).astype('uint8')
+    x, y = np.meshgrid(np.arange(0, w, 1), np.arange(0, h, 1), indexing='xy')
+
+    warped_image = griddata((x.flatten(), y.flatten()), image.flatten(),
+                            (x.flatten() + u.flatten(), y.flatten() + v.flatten()), fill_value=np.nan)
+    indices = np.isnan(warped_image)
+    if len(indices) > 0:
+        warped_image[indices] = image.flatten()[indices]
+    return warped_image.reshape(image.shape)
 
 def lucas_kanade_optical_flow(I1: np.ndarray,
                               I2: np.ndarray,
@@ -215,40 +222,36 @@ def lucas_kanade_optical_flow(I1: np.ndarray,
             of the current pyramid level and the current I2_warp to get the
             new I2_warp.
           (4.3) For every level which is not the image's level, perform an
-              image resize (using cv2.resize) to the next pyramid level resolution
+          image resize (using cv2.resize) to the next pyramid level resolution
           and scale u and v accordingly.
     """
-    """INSERT YOUR CODE HERE.
-        Replace image_warp with something else.
-        """
     h_factor = int(np.ceil(I1.shape[0] / (2 ** (num_levels - 1 + 1))))
     w_factor = int(np.ceil(I1.shape[1] / (2 ** (num_levels - 1 + 1))))
     IMAGE_SIZE = (w_factor * (2 ** (num_levels - 1 + 1)),
                   h_factor * (2 ** (num_levels - 1 + 1)))
-    if I1.shape != IMAGE_SIZE:
+    if I1.T.shape != IMAGE_SIZE:
         I1 = cv2.resize(I1, IMAGE_SIZE)
-    if I2.shape != IMAGE_SIZE:
+    if I2.T.shape != IMAGE_SIZE:
         I2 = cv2.resize(I2, IMAGE_SIZE)
     # create a pyramid from I1 and I2
     pyramid_I1 = build_pyramid(I1, num_levels)
-    pyarmid_I2 = build_pyramid(I2, num_levels)
+    pyramid_I2 = build_pyramid(I2, num_levels)
     # start from u and v in the size of smallest image
-    u = np.zeros(pyarmid_I2[-1].shape)
-    v = np.zeros(pyarmid_I2[-1].shape)
-    for pyramid_level in reversed(range(num_levels+1)):
-        warped_image = warp_image(pyarmid_I2[pyramid_level], u, v)
-        for step in range (max_iter):
-            du, dv = lucas_kanade_step(pyramid_I1[pyramid_level], warped_image, window_size)
+    u = np.zeros(pyramid_I2[-1].shape)
+    v = np.zeros(pyramid_I2[-1].shape)
+    for pyramid_level in (range(num_levels, -1, -1)):
+        I2_warp = warp_image(pyramid_I2[pyramid_level], u, v)
+        for step in range(max_iter):
+            du, dv = lucas_kanade_step(pyramid_I1[pyramid_level], I2_warp, window_size)
             u = u + du
             v = v + dv
-            warped_image = warp_image(pyarmid_I2[pyramid_level], u, v)
-        u = np.resize(u,(np.multiply(u.shape,2)[0], np.multiply(u.shape,2)[1]))
-        v = np.resize(v,(np.multiply(v.shape,2)[0], np.multiply(v.shape,2)[1]))
-        u = u * 2
-        v = v * 2
+            I2_warp = warp_image(pyramid_I2[pyramid_level], u, v)
+        if pyramid_level > 0:
+            h_resize, w_resize = pyramid_I2[pyramid_level - 1].shape
+            u = cv2.resize(u, (w_resize, h_resize)) * 2
+            v = cv2.resize(v, (w_resize, h_resize)) * 2
 
     return u, v
-
 
 def lucas_kanade_video_stabilization(input_video_path: str,
                                      output_video_path: str,
