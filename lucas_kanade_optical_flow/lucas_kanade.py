@@ -254,6 +254,10 @@ def lucas_kanade_optical_flow(I1: np.ndarray,
 
     return u, v
 
+def generator():
+    while True:
+        yield
+
 def lucas_kanade_video_stabilization(input_video_path: str,
                                      output_video_path: str,
                                      window_size: int,
@@ -310,41 +314,60 @@ def lucas_kanade_video_stabilization(input_video_path: str,
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
     output_video = cv2.VideoWriter(output_video_path, fourcc, parameters["fps"],
                                    (parameters["width"], parameters["height"]), isColor=False)
+
+    # reading first frame
     ret, first_frame = input_video.read()
-    # converting to gray-scale
-    gray_first_frame = cv2.cvtColor(first_frame, cv2.COLOR_BGR2GRAY)
-    h_factor = int(np.ceil(gray_first_frame.shape[0] / (2 ** (num_levels - 1 + 1))))
-    w_factor = int(np.ceil(gray_first_frame.shape[1] / (2 ** (num_levels - 1 + 1))))
+    h_factor = int(np.ceil(first_frame.shape[0] / (2 ** (num_levels - 1 + 1))))
+    w_factor = int(np.ceil(first_frame.shape[1] / (2 ** (num_levels - 1 + 1))))
+    FRAME_SIZE = first_frame.shape
     IMAGE_SIZE = (w_factor * (2 ** (num_levels - 1 + 1)),
                   h_factor * (2 ** (num_levels - 1 + 1)))
-    gray_frame = cv2.resize(gray_first_frame, IMAGE_SIZE)
-    u = np.zeros(gray_frame.shape)
-    v = np.zeros(gray_frame.shape)
-    output_video.write(gray_frame)
-    prev_frame = gray_frame
+
+    # converting to gray-scale
+    first_frame_gray = cv2.cvtColor(first_frame, cv2.COLOR_BGR2GRAY)
+    # writing the first frame to output video
+    output_video.write(first_frame_gray)
+    # resizing the first gray scale frame
+    first_frame_gray = cv2.resize(first_frame_gray, IMAGE_SIZE)
+
+    # initialize u and v maps
+    u = np.zeros(first_frame_gray.shape)
+    v = np.zeros(first_frame_gray.shape)
+
+    # looping over the frames in the input video
+    prev_frame = first_frame_gray
     boundary_idx = window_size // 2
-    def generator():
-        while True:
-            yield
 
     for idx, _ in enumerate(tqdm(generator())):  # extracting the frames
         ret, frame = input_video.read()
-        # converting to gray-scale
         if ret:
-            gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            gray_frame = cv2.resize(gray_frame, IMAGE_SIZE)
-            u_frame, v_frame = lucas_kanade_optical_flow(prev_frame, gray_frame, window_size, max_iter, num_levels)
-            u_frame_mean = np.mean(u_frame[boundary_idx:int(u_frame.shape[0]) - boundary_idx, boundary_idx: int(u_frame.shape[1]) - boundary_idx])
-            v_frame_mean = np.mean(v_frame[boundary_idx:int(v_frame.shape[0]) - boundary_idx, boundary_idx: int(v_frame.shape[1]) - boundary_idx])
-            u[boundary_idx:int(u_frame.shape[0]) - boundary_idx, boundary_idx: int(u_frame.shape[1]) - boundary_idx] = u_frame_mean
-            v[boundary_idx:int(v_frame.shape[0]) - boundary_idx, boundary_idx: int(v_frame.shape[1]) - boundary_idx] = v_frame_mean
-            warped_frame = warp_image(gray_frame, u, v)
-            prev_frame = gray_frame
+            # converting to gray-scale and resizing
+            gray_current_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            gray_current_frame = cv2.resize(gray_current_frame, IMAGE_SIZE)
+
+            # calculating u and v maps of the current frame
+            u_current_frame, v_current_frame = lucas_kanade_optical_flow(prev_frame, gray_current_frame, window_size,
+                                                                         max_iter, num_levels)
+
+            # finding the mean values of u and v maps of the current frame
+            u_current_frame_mean = np.mean(u_current_frame[boundary_idx:int(u_current_frame.shape[0]) - boundary_idx,
+                                   boundary_idx: int(u_current_frame.shape[1]) - boundary_idx])
+            v_current_frame_mean = np.mean(v_current_frame[boundary_idx:int(v_current_frame.shape[0]) - boundary_idx,
+                                   boundary_idx: int(v_current_frame.shape[1]) - boundary_idx])
+
+            # updating u and v maps
+            u[boundary_idx:int(u_current_frame.shape[0]) - boundary_idx, boundary_idx: int(u_current_frame.shape[1]) - boundary_idx] = u_current_frame_mean
+            v[boundary_idx:int(v_current_frame.shape[0]) - boundary_idx, boundary_idx: int(v_current_frame.shape[1]) - boundary_idx] = v_current_frame_mean
+
+            warped_frame = warp_image(gray_current_frame, u, v)
+            warped_frame = cv2.resize(warped_frame, FRAME_SIZE)
             output_video.write(warped_frame.astype('uint8'))
-            plt.figure()
+
+            prev_frame = gray_current_frame
+
             plt.imshow(warped_frame, cmap='gray')
             plt.savefig(f'./frame_num_{idx}')
-            plt.show()
+            # plt.show()
             # if idx % 10 == 0:
             #     image_paths = ['./frame_num_0', './frame_num_1', './frame_num_2', './frame_num_3']
             #     images = (Image.open(f) for f in image_paths)
@@ -353,6 +376,9 @@ def lucas_kanade_video_stabilization(input_video_path: str,
             #              format='GIF', append_images=images, save_all=True, duration=200,
             #              loop=0)
         else:
+            break
+
+        if idx == 5:
             break
 
     input_video.release()
@@ -381,9 +407,15 @@ def faster_lucas_kanade_step(I1: np.ndarray,
         (du, dv): tuple of np.ndarray-s. Each one of the shape of the
         original image. dv encodes the shift in rows and du in columns.
     """
-
+    h, w = I1.shape
     du = np.zeros(I1.shape)
     dv = np.zeros(I1.shape)
+
+    if h <= 32 & w <= 40:
+        du, dv = lucas_kanade_step(I1, I2, window_size)
+    else:
+        pass
+
     """INSERT YOUR CODE HERE.
     Calculate du and dv correctly.
     """
