@@ -69,11 +69,11 @@ statistics["[TAU, TIME] naive LK implementation"] = end_time - start_time
 
 faster_output_video_name = f'{ID1}_{ID2}_faster_stabilized_video.avi'
 start_time = time.time()
-lucas_kanade_faster_video_stabilization(input_video_name,
-                                        faster_output_video_name,
-                                        WINDOW_SIZE_TAU,
-                                        MAX_ITER_TAU,
-                                        NUM_LEVELS_TAU)
+# lucas_kanade_faster_video_stabilization(input_video_name,
+#                                         faster_output_video_name,
+#                                         WINDOW_SIZE_TAU,
+#                                         MAX_ITER_TAU,
+#                                         NUM_LEVELS_TAU)
 end_time = time.time()
 print(f'LK-Video Stabilization FASTER implementation took: '
       f'{end_time - start_time:.2f}[sec]')

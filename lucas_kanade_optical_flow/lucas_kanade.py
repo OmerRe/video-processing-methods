@@ -395,7 +395,7 @@ def faster_lucas_kanade_step(I1: np.ndarray,
     dv = np.zeros(I1.shape)
     corners_image = np.zeros(I1.shape)
 
-    if I1.size < 400:
+    if I1.size < 26000:
         du, dv = lucas_kanade_step(I1, I2, window_size)
     else:
         R = cv2.cornerHarris(I2.astype('float32'), 2, 3, 0.05)
@@ -462,7 +462,7 @@ def faster_lucas_kanade_optical_flow(
     # start from u and v in the size of smallest image
     u = np.zeros(pyramid_I2[-1].shape)
     v = np.zeros(pyramid_I2[-1].shape)
-    for pyramid_level in (range(num_levels, -1, -1)):
+    for pyramid_level in reversed(range(num_levels+1)):
         I2_warp = warp_image(pyramid_I2[pyramid_level], u, v)
         for step in range(max_iter):
             du, dv = faster_lucas_kanade_step(pyramid_I1[pyramid_level], I2_warp, window_size)
@@ -549,9 +549,6 @@ def lucas_kanade_faster_video_stabilization(
             output_video.write(warped_frame.astype('uint8'))
 
             prev_frame = gray_current_frame
-
-            plt.imshow(warped_frame, cmap='gray')  # TODO: remove
-            plt.savefig(f'./stabilization_results/frame_num_{idx}')  # TODO: remove
         else:
             break
 
@@ -639,9 +636,6 @@ def lucas_kanade_faster_video_stabilization_fix_effects(
             output_video.write(warped_frame.astype('uint8'))
 
             prev_frame = gray_current_frame
-
-            plt.imshow(warped_frame, cmap='gray')  # TODO: remove
-            plt.savefig(f'./stabilization_results/frame_num_{idx}')  # TODO: remove
         else:
             break
 
