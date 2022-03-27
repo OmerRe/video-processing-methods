@@ -8,12 +8,12 @@ from lucas_kanade import lucas_kanade_video_stabilization, \
 
 
 # FILL IN YOUR ID
-ID1 = '123456789'
-ID2 = '987654321'
+ID1 = '302828991'
+ID2 = '316524800'
 
 # Choose parameters
 WINDOW_SIZE_TAU = 5  # Add your value here!
-MAX_ITER_TAU = 5  # Add your value here!
+MAX_ITER_TAU = 3  # Add your value here!
 NUM_LEVELS_TAU = 5  # Add your value here!
 
 
@@ -57,11 +57,11 @@ input_video_name = 'input.avi'
 
 output_video_name = f'{ID1}_{ID2}_stabilized_video.avi'
 start_time = time.time()
-lucas_kanade_video_stabilization(input_video_name,
-                                 output_video_name,
-                                 WINDOW_SIZE_TAU,
-                                 MAX_ITER_TAU,
-                                 NUM_LEVELS_TAU)
+# lucas_kanade_video_stabilization(input_video_name,
+#                                  output_video_name,
+#                                  WINDOW_SIZE_TAU,
+#                                  MAX_ITER_TAU,
+#                                  NUM_LEVELS_TAU)
 end_time = time.time()
 print(f'LK-Video Stabilization Taking all pixels into account took: '
       f'{end_time - start_time:.2f}[sec]')
@@ -69,11 +69,11 @@ statistics["[TAU, TIME] naive LK implementation"] = end_time - start_time
 
 faster_output_video_name = f'{ID1}_{ID2}_faster_stabilized_video.avi'
 start_time = time.time()
-lucas_kanade_faster_video_stabilization(input_video_name,
-                                        faster_output_video_name,
-                                        WINDOW_SIZE_TAU,
-                                        MAX_ITER_TAU,
-                                        NUM_LEVELS_TAU)
+# lucas_kanade_faster_video_stabilization(input_video_name,
+#                                         faster_output_video_name,
+#                                         WINDOW_SIZE_TAU,
+#                                         MAX_ITER_TAU,
+#                                         NUM_LEVELS_TAU)
 end_time = time.time()
 print(f'LK-Video Stabilization FASTER implementation took: '
       f'{end_time - start_time:.2f}[sec]')

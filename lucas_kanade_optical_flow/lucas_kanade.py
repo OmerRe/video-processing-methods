@@ -68,11 +68,6 @@ def build_pyramid(image: np.ndarray, num_levels: int) -> list[np.ndarray]:
         filtered_image = signal.convolve2d(pyramid[-1], PYRAMID_FILTER, mode='same', boundary='symm')
         decimated_image = filtered_image[::2, ::2]
         pyramid.append(decimated_image)
-
-    # for ii in range(0, num_levels):
-    #     pyr_level_blur = signal.convolve2d(pyramid[ii], PYRAMID_FILTER, boundary='symm', mode='same')
-    #     pyr_level_dec = pyr_level_blur[1::2, 1::2]
-    #     pyramid.append(pyr_level_dec)
     return pyramid
 
 def lucas_kanade_step(I1: np.ndarray,
@@ -111,9 +106,6 @@ def lucas_kanade_step(I1: np.ndarray,
         original image. dv encodes the optical flow parameters in rows and du
         in columns.
     """
-    """INSERT YOUR CODE HERE.
-    Calculate du and dv correctly.
-    """
     Ix = signal.convolve2d(I2, X_DERIVATIVE_FILTER, mode='same')
     Iy = signal.convolve2d(I2, Y_DERIVATIVE_FILTER, mode='same')
     It = I2 - I1
@@ -137,7 +129,7 @@ def lucas_kanade_step(I1: np.ndarray,
             try:
                 du[i, j], dv[i, j] = -np.matmul(np.matmul(np.linalg.inv(np.matmul(np.transpose(A), A)),
                                                          np.transpose(A)), b)
-            except np.linalg.LinAlgError: #Todo: add error type
+            except np.linalg.LinAlgError:
                 pass
     return du, dv
 
@@ -254,6 +246,10 @@ def lucas_kanade_optical_flow(I1: np.ndarray,
 
     return u, v
 
+def generator():
+    while True:
+        yield
+
 def lucas_kanade_video_stabilization(input_video_path: str,
                                      output_video_path: str,
                                      window_size: int,
@@ -310,48 +306,60 @@ def lucas_kanade_video_stabilization(input_video_path: str,
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
     output_video = cv2.VideoWriter(output_video_path, fourcc, parameters["fps"],
                                    (parameters["width"], parameters["height"]), isColor=False)
+    video_shape = (parameters["width"], parameters["height"])
+
+    # reading first frame
     ret, first_frame = input_video.read()
     # converting to gray-scale
-    gray_first_frame = cv2.cvtColor(first_frame, cv2.COLOR_BGR2GRAY)
-    h_factor = int(np.ceil(gray_first_frame.shape[0] / (2 ** (num_levels - 1 + 1))))
-    w_factor = int(np.ceil(gray_first_frame.shape[1] / (2 ** (num_levels - 1 + 1))))
-    IMAGE_SIZE = (w_factor * (2 ** (num_levels - 1 + 1)),
-                  h_factor * (2 ** (num_levels - 1 + 1)))
-    gray_frame = cv2.resize(gray_first_frame, IMAGE_SIZE)
-    u = np.zeros(gray_frame.shape)
-    v = np.zeros(gray_frame.shape)
-    output_video.write(gray_frame)
-    prev_frame = gray_frame
+    first_frame_gray = cv2.cvtColor(first_frame, cv2.COLOR_BGR2GRAY)
+    # writing the first frame to output video
+    output_video.write(first_frame_gray)
+    # resizing the first gray scale frame
+    h_factor = int(np.ceil(first_frame.shape[0] / (2 ** (num_levels - 1 + 1))))
+    w_factor = int(np.ceil(first_frame.shape[1] / (2 ** (num_levels - 1 + 1))))
+    image_size = (w_factor * (2 ** (num_levels - 1 + 1)), h_factor * (2 ** (num_levels - 1 + 1)))
+    first_frame_gray = cv2.resize(first_frame_gray, image_size)
+
+    # initialize u and v maps
+    u = np.zeros(first_frame_gray.shape)
+    v = np.zeros(first_frame_gray.shape)
+
+    # looping over the frames in the input video
+    prev_frame = first_frame_gray
     boundary_idx = window_size // 2
-    def generator():
-        while True:
-            yield
 
     for idx, _ in enumerate(tqdm(generator())):  # extracting the frames
         ret, frame = input_video.read()
-        # converting to gray-scale
         if ret:
-            gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            gray_frame = cv2.resize(gray_frame, IMAGE_SIZE)
-            u_frame, v_frame = lucas_kanade_optical_flow(prev_frame, gray_frame, window_size, max_iter, num_levels)
-            u_frame_mean = np.mean(u_frame[boundary_idx:int(u_frame.shape[0]) - boundary_idx, boundary_idx: int(u_frame.shape[1]) - boundary_idx])
-            v_frame_mean = np.mean(v_frame[boundary_idx:int(v_frame.shape[0]) - boundary_idx, boundary_idx: int(v_frame.shape[1]) - boundary_idx])
-            u[boundary_idx:int(u_frame.shape[0]) - boundary_idx, boundary_idx: int(u_frame.shape[1]) - boundary_idx] = u_frame_mean
-            v[boundary_idx:int(v_frame.shape[0]) - boundary_idx, boundary_idx: int(v_frame.shape[1]) - boundary_idx] = v_frame_mean
-            warped_frame = warp_image(gray_frame, u, v)
-            prev_frame = gray_frame
+            # converting to gray-scale and resizing
+            gray_current_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            gray_current_frame = cv2.resize(gray_current_frame, image_size)
+
+            # calculating u and v maps of the current frame
+            u_current_frame, v_current_frame = lucas_kanade_optical_flow(prev_frame, gray_current_frame, window_size,
+                                                                         max_iter, num_levels)
+
+            # finding the mean values of u and v maps of the current frame
+            u_current_frame_mean = np.mean(u_current_frame[boundary_idx:int(u_current_frame.shape[0]) - boundary_idx,
+                                   boundary_idx: int(u_current_frame.shape[1]) - boundary_idx])
+            v_current_frame_mean = np.mean(v_current_frame[boundary_idx:int(v_current_frame.shape[0]) - boundary_idx,
+                                   boundary_idx: int(v_current_frame.shape[1]) - boundary_idx])
+
+            # updating u and v maps
+            u[boundary_idx:int(u_current_frame.shape[0]) - boundary_idx, boundary_idx: int(u_current_frame.shape[1]) - boundary_idx] += u_current_frame_mean
+            v[boundary_idx:int(v_current_frame.shape[0]) - boundary_idx, boundary_idx: int(v_current_frame.shape[1]) - boundary_idx] += v_current_frame_mean
+
+            # u += u_current_frame_mean * np.ones(u.shape)
+            # v += v_current_frame_mean * np.ones(v.shape)
+
+            warped_frame = warp_image(gray_current_frame, u, v)
+            warped_frame = cv2.resize(warped_frame, video_shape)
             output_video.write(warped_frame.astype('uint8'))
-            plt.figure()
-            plt.imshow(warped_frame, cmap='gray')
-            plt.savefig(f'./frame_num_{idx}')
-            plt.show()
-            # if idx % 10 == 0:
-            #     image_paths = ['./frame_num_0', './frame_num_1', './frame_num_2', './frame_num_3']
-            #     images = (Image.open(f) for f in image_paths)
-            #     img = next(images)
-            #     img.save(fp='/.2_after_one_lk_step.gif',
-            #              format='GIF', append_images=images, save_all=True, duration=200,
-            #              loop=0)
+
+            prev_frame = gray_current_frame
+
+            plt.imshow(warped_frame, cmap='gray')  # TODO: remove
+            plt.savefig(f'./stabilization_results/frame_num_{idx}')  # TODO: remove
         else:
             break
 
@@ -381,14 +389,46 @@ def faster_lucas_kanade_step(I1: np.ndarray,
         (du, dv): tuple of np.ndarray-s. Each one of the shape of the
         original image. dv encodes the shift in rows and du in columns.
     """
-
+    boundary_idx = window_size // 2
+    h, w = I1.shape
     du = np.zeros(I1.shape)
     dv = np.zeros(I1.shape)
-    """INSERT YOUR CODE HERE.
-    Calculate du and dv correctly.
-    """
-    return du, dv
+    corners_image = np.zeros(I1.shape)
 
+    if I1.size < 26000:
+        du, dv = lucas_kanade_step(I1, I2, window_size)
+    else:
+        R = cv2.cornerHarris(I2.astype('float32'), 2, 3, 0.05)
+        # R = np.pad(R, (2,), constant_values=0)
+
+        # Threshold for an optimal value, it may vary depending on the image.
+        corners_image[R > 0.00005 * R.max()] = 1
+        x_corners, y_corners = np.nonzero(corners_image)
+        corners_indices = list(zip(x_corners, y_corners))
+        Ix = signal.convolve2d(I2, X_DERIVATIVE_FILTER, mode='same')
+        Iy = signal.convolve2d(I2, Y_DERIVATIVE_FILTER, mode='same')
+        It = I2 - I1
+
+        for x_idx, y_idx in corners_indices:
+            if (boundary_idx <= x_idx < h - boundary_idx) and (boundary_idx <= y_idx < w - boundary_idx):
+                Ix_window = (Ix[x_idx - boundary_idx:x_idx + boundary_idx + 1, y_idx - boundary_idx:y_idx + boundary_idx + 1]).reshape(
+                    window_size * window_size, 1)
+                Iy_window = (Iy[x_idx - boundary_idx:x_idx + boundary_idx + 1, y_idx - boundary_idx:y_idx + boundary_idx + 1]).reshape(
+                    window_size * window_size, 1)
+                It_window = (It[x_idx - boundary_idx:x_idx + boundary_idx + 1, y_idx - boundary_idx:y_idx + boundary_idx + 1]).reshape(
+                    window_size * window_size, 1)
+                A = np.append(Ix_window, Iy_window, axis=1)
+                b = It_window
+
+                try:
+                    du[x_idx, y_idx], dv[x_idx, y_idx] = -np.matmul(np.matmul(np.linalg.inv(np.matmul(np.transpose(A), A)),
+                                                              np.transpose(A)), b)
+                except np.linalg.LinAlgError:
+                        pass
+            else:
+                pass
+
+    return du, dv
 
 def faster_lucas_kanade_optical_flow(
         I1: np.ndarray, I2: np.ndarray, window_size: int, max_iter: int,
@@ -408,22 +448,32 @@ def faster_lucas_kanade_optical_flow(
         (u, v): tuple of np.ndarray-s. Each one of the shape of the
         original image. v encodes the shift in rows and u in columns.
     """
-    h_factor = int(np.ceil(I1.shape[0] / (2 ** num_levels)))
-    w_factor = int(np.ceil(I1.shape[1] / (2 ** num_levels)))
-    IMAGE_SIZE = (w_factor * (2 ** num_levels),
-                  h_factor * (2 ** num_levels))
-    if I1.shape != IMAGE_SIZE:
+    h_factor = int(np.ceil(I1.shape[0] / (2 ** (num_levels - 1 + 1))))
+    w_factor = int(np.ceil(I1.shape[1] / (2 ** (num_levels - 1 + 1))))
+    IMAGE_SIZE = (w_factor * (2 ** (num_levels - 1 + 1)),
+                  h_factor * (2 ** (num_levels - 1 + 1)))
+    if I1.T.shape != IMAGE_SIZE:
         I1 = cv2.resize(I1, IMAGE_SIZE)
-    if I2.shape != IMAGE_SIZE:
+    if I2.T.shape != IMAGE_SIZE:
         I2 = cv2.resize(I2, IMAGE_SIZE)
-    pyramid_I1 = build_pyramid(I1, num_levels)  # create levels list for I1
-    pyarmid_I2 = build_pyramid(I2, num_levels)  # create levels list for I1
-    u = np.zeros(pyarmid_I2[-1].shape)  # create u in the size of smallest image
-    v = np.zeros(pyarmid_I2[-1].shape)  # create v in the size of smallest image
-    """INSERT YOUR CODE HERE.
-    Replace u and v with their true value."""
-    u = np.zeros(I1.shape)
-    v = np.zeros(I1.shape)
+    # create a pyramid from I1 and I2
+    pyramid_I1 = build_pyramid(I1, num_levels)
+    pyramid_I2 = build_pyramid(I2, num_levels)
+    # start from u and v in the size of smallest image
+    u = np.zeros(pyramid_I2[-1].shape)
+    v = np.zeros(pyramid_I2[-1].shape)
+    for pyramid_level in reversed(range(num_levels+1)):
+        I2_warp = warp_image(pyramid_I2[pyramid_level], u, v)
+        for step in range(max_iter):
+            du, dv = faster_lucas_kanade_step(pyramid_I1[pyramid_level], I2_warp, window_size)
+            u = u + du
+            v = v + dv
+            I2_warp = warp_image(pyramid_I2[pyramid_level], u, v)
+        if pyramid_level > 0:
+            h_resize, w_resize = pyramid_I2[pyramid_level - 1].shape
+            u = cv2.resize(u, (w_resize, h_resize)) * 2
+            v = cv2.resize(v, (w_resize, h_resize)) * 2
+
     return u, v
 
 
@@ -442,8 +492,69 @@ def lucas_kanade_faster_video_stabilization(
     Returns:
         None.
     """
-    """INSERT YOUR CODE HERE."""
-    pass
+    input_video = cv2.VideoCapture(input_video_path)
+    parameters = get_video_parameters(input_video)
+    # creating VideoWriter object
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    output_video = cv2.VideoWriter(output_video_path, fourcc, parameters["fps"],
+                                   (parameters["width"], parameters["height"]), isColor=False)
+    video_shape = (parameters["width"], parameters["height"])
+
+    # reading first frame
+    ret, first_frame = input_video.read()
+    # converting to gray-scale
+    first_frame_gray = cv2.cvtColor(first_frame, cv2.COLOR_BGR2GRAY)
+    # writing the first frame to output video
+    output_video.write(first_frame_gray)
+    # resizing the first gray scale frame
+    h_factor = int(np.ceil(first_frame.shape[0] / (2 ** (num_levels - 1 + 1))))
+    w_factor = int(np.ceil(first_frame.shape[1] / (2 ** (num_levels - 1 + 1))))
+    image_size = (w_factor * (2 ** (num_levels - 1 + 1)), h_factor * (2 ** (num_levels - 1 + 1)))
+    first_frame_gray = cv2.resize(first_frame_gray, image_size)
+
+    # initialize u and v maps
+    u = np.zeros(first_frame_gray.shape)
+    v = np.zeros(first_frame_gray.shape)
+
+    # looping over the frames in the input video
+    prev_frame = first_frame_gray
+    boundary_idx = window_size // 2
+
+    for idx, _ in enumerate(tqdm(generator())):  # extracting the frames
+        ret, frame = input_video.read()
+        if ret:
+            # converting to gray-scale and resizing
+            gray_current_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            gray_current_frame = cv2.resize(gray_current_frame, image_size)
+
+            # calculating u and v maps of the current frame
+            u_current_frame, v_current_frame = faster_lucas_kanade_optical_flow(prev_frame, gray_current_frame,
+                                                                                window_size, max_iter, num_levels)
+
+            # finding the mean values of u and v maps of the current frame
+            u_current_frame_mean = np.mean(u_current_frame[boundary_idx:int(u_current_frame.shape[0]) - boundary_idx,
+                                   boundary_idx: int(u_current_frame.shape[1]) - boundary_idx])
+            v_current_frame_mean = np.mean(v_current_frame[boundary_idx:int(v_current_frame.shape[0]) - boundary_idx,
+                                   boundary_idx: int(v_current_frame.shape[1]) - boundary_idx])
+
+            # updating u and v maps
+            u[boundary_idx:int(u_current_frame.shape[0]) - boundary_idx, boundary_idx: int(u_current_frame.shape[1]) - boundary_idx] += u_current_frame_mean
+            v[boundary_idx:int(v_current_frame.shape[0]) - boundary_idx, boundary_idx: int(v_current_frame.shape[1]) - boundary_idx] += v_current_frame_mean
+
+            # u += u_current_frame_mean * np.ones(u.shape)
+            # v += v_current_frame_mean * np.ones(v.shape)
+
+            warped_frame = warp_image(gray_current_frame, u, v)
+            warped_frame = cv2.resize(warped_frame, video_shape)
+            output_video.write(warped_frame.astype('uint8'))
+
+            prev_frame = gray_current_frame
+        else:
+            break
+
+    input_video.release()
+    output_video.release()
+    cv2.destroyAllWindows()
 
 
 def lucas_kanade_faster_video_stabilization_fix_effects(
@@ -466,7 +577,71 @@ def lucas_kanade_faster_video_stabilization_fix_effects(
     Returns:
         None.
     """
-    """INSERT YOUR CODE HERE."""
+    input_video = cv2.VideoCapture(input_video_path)
+    parameters = get_video_parameters(input_video)
+    # creating VideoWriter object
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    output_video = cv2.VideoWriter(output_video_path, fourcc, parameters["fps"],
+                                   (parameters["width"], parameters["height"]), isColor=False)
+    video_shape = (parameters["width"], parameters["height"])
+
+    # reading first frame
+    ret, first_frame = input_video.read()
+    # converting to gray-scale
+    first_frame_gray = cv2.cvtColor(first_frame, cv2.COLOR_BGR2GRAY)
+    # writing the first frame to output video
+    output_video.write(first_frame_gray)
+    # resizing the first gray scale frame
+    h_factor = int(np.ceil(first_frame.shape[0] / (2 ** (num_levels - 1 + 1))))
+    w_factor = int(np.ceil(first_frame.shape[1] / (2 ** (num_levels - 1 + 1))))
+    image_size = (w_factor * (2 ** (num_levels - 1 + 1)), h_factor * (2 ** (num_levels - 1 + 1)))
+    first_frame_gray = cv2.resize(first_frame_gray, image_size)
+
+    # initialize u and v maps
+    u = np.zeros(first_frame_gray.shape)
+    v = np.zeros(first_frame_gray.shape)
+
+    # looping over the frames in the input video
+    prev_frame = first_frame_gray
+    boundary_idx = window_size // 2
+
+    for idx, _ in enumerate(tqdm(generator())):  # extracting the frames
+        ret, frame = input_video.read()
+        if ret:
+            # converting to gray-scale and resizing
+            gray_current_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            gray_current_frame = cv2.resize(gray_current_frame, image_size)
+
+            # calculating u and v maps of the current frame
+            u_current_frame, v_current_frame = faster_lucas_kanade_optical_flow(prev_frame, gray_current_frame,
+                                                                                window_size, max_iter, num_levels)
+
+            # finding the mean values of u and v maps of the current frame
+            u_current_frame_mean = np.mean(u_current_frame[boundary_idx:int(u_current_frame.shape[0]) - boundary_idx,
+                                   boundary_idx: int(u_current_frame.shape[1]) - boundary_idx])
+            v_current_frame_mean = np.mean(v_current_frame[boundary_idx:int(v_current_frame.shape[0]) - boundary_idx,
+                                   boundary_idx: int(v_current_frame.shape[1]) - boundary_idx])
+
+            # updating u and v maps
+            u[boundary_idx:int(u_current_frame.shape[0]) - boundary_idx, boundary_idx: int(u_current_frame.shape[1]) - boundary_idx] += u_current_frame_mean
+            v[boundary_idx:int(v_current_frame.shape[0]) - boundary_idx, boundary_idx: int(v_current_frame.shape[1]) - boundary_idx] += v_current_frame_mean
+
+            # u += u_current_frame_mean * np.ones(u.shape)
+            # v += v_current_frame_mean * np.ones(v.shape)
+
+            warped_frame = warp_image(gray_current_frame[start_rows:gray_current_frame.shape[0] - end_rows,
+                                      start_cols:gray_current_frame.shape[1] - end_cols], u, v)
+
+            warped_frame = cv2.resize(warped_frame, video_shape)
+            output_video.write(warped_frame.astype('uint8'))
+
+            prev_frame = gray_current_frame
+        else:
+            break
+
+    input_video.release()
+    output_video.release()
+    cv2.destroyAllWindows()
     pass
 
 
