@@ -395,11 +395,11 @@ def faster_lucas_kanade_step(I1: np.ndarray,
     dv = np.zeros(I1.shape)
     corners_image = np.zeros(I1.shape)
 
-    if I1.size < 6000:
+    if I1.size < 400:
         du, dv = lucas_kanade_step(I1, I2, window_size)
     else:
-        R = cv2.cornerHarris(I2[boundary_idx: h - boundary_idx, boundary_idx:w - boundary_idx].astype('float32'), 2, 3, 0.05)
-        R = np.pad(R, (2,), constant_values=0)
+        R = cv2.cornerHarris(I2.astype('float32'), 2, 3, 0.05)
+        # R = np.pad(R, (2,), constant_values=0)
 
         # Threshold for an optimal value, it may vary depending on the image.
         corners_image[R > 0.00005 * R.max()] = 1
@@ -410,23 +410,25 @@ def faster_lucas_kanade_step(I1: np.ndarray,
         It = I2 - I1
 
         for x_idx, y_idx in corners_indices:
-            Ix_window = (Ix[x_idx - boundary_idx:x_idx + boundary_idx + 1, y_idx - boundary_idx:y_idx + boundary_idx + 1]).reshape(
-                window_size * window_size, 1)
-            Iy_window = (Iy[x_idx - boundary_idx:x_idx + boundary_idx + 1, y_idx - boundary_idx:y_idx + boundary_idx + 1]).reshape(
-                window_size * window_size, 1)
-            It_window = (It[x_idx - boundary_idx:x_idx + boundary_idx + 1, y_idx - boundary_idx:y_idx + boundary_idx + 1]).reshape(
-                window_size * window_size, 1)
-            A = np.append(Ix_window, Iy_window, axis=1)
-            b = It_window
+            if (boundary_idx <= x_idx < h - boundary_idx) and (boundary_idx <= y_idx < w - boundary_idx):
+                Ix_window = (Ix[x_idx - boundary_idx:x_idx + boundary_idx + 1, y_idx - boundary_idx:y_idx + boundary_idx + 1]).reshape(
+                    window_size * window_size, 1)
+                Iy_window = (Iy[x_idx - boundary_idx:x_idx + boundary_idx + 1, y_idx - boundary_idx:y_idx + boundary_idx + 1]).reshape(
+                    window_size * window_size, 1)
+                It_window = (It[x_idx - boundary_idx:x_idx + boundary_idx + 1, y_idx - boundary_idx:y_idx + boundary_idx + 1]).reshape(
+                    window_size * window_size, 1)
+                A = np.append(Ix_window, Iy_window, axis=1)
+                b = It_window
 
-            try:
-                du[x_idx, y_idx], dv[x_idx, y_idx] = -np.matmul(np.matmul(np.linalg.inv(np.matmul(np.transpose(A), A)),
-                                                          np.transpose(A)), b)
-            except np.linalg.LinAlgError:
-                    pass
+                try:
+                    du[x_idx, y_idx], dv[x_idx, y_idx] = -np.matmul(np.matmul(np.linalg.inv(np.matmul(np.transpose(A), A)),
+                                                              np.transpose(A)), b)
+                except np.linalg.LinAlgError:
+                        pass
+            else:
+                pass
 
     return du, dv
-
 
 def faster_lucas_kanade_optical_flow(
         I1: np.ndarray, I2: np.ndarray, window_size: int, max_iter: int,
