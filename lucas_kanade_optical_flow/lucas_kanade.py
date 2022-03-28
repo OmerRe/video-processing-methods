@@ -349,17 +349,11 @@ def lucas_kanade_video_stabilization(input_video_path: str,
             u[boundary_idx:int(u_current_frame.shape[0]) - boundary_idx, boundary_idx: int(u_current_frame.shape[1]) - boundary_idx] += u_current_frame_mean
             v[boundary_idx:int(v_current_frame.shape[0]) - boundary_idx, boundary_idx: int(v_current_frame.shape[1]) - boundary_idx] += v_current_frame_mean
 
-            # u += u_current_frame_mean * np.ones(u.shape)
-            # v += v_current_frame_mean * np.ones(v.shape)
-
             warped_frame = warp_image(gray_current_frame, u, v)
             warped_frame = cv2.resize(warped_frame, video_shape)
             output_video.write(warped_frame.astype('uint8'))
 
             prev_frame = gray_current_frame
-
-            plt.imshow(warped_frame, cmap='gray')  # TODO: remove
-            plt.savefig(f'./stabilization_results/frame_num_{idx}')  # TODO: remove
         else:
             break
 
@@ -541,9 +535,6 @@ def lucas_kanade_faster_video_stabilization(
             u[boundary_idx:int(u_current_frame.shape[0]) - boundary_idx, boundary_idx: int(u_current_frame.shape[1]) - boundary_idx] += u_current_frame_mean
             v[boundary_idx:int(v_current_frame.shape[0]) - boundary_idx, boundary_idx: int(v_current_frame.shape[1]) - boundary_idx] += v_current_frame_mean
 
-            # u += u_current_frame_mean * np.ones(u.shape)
-            # v += v_current_frame_mean * np.ones(v.shape)
-
             warped_frame = warp_image(gray_current_frame, u, v)
             warped_frame = cv2.resize(warped_frame, video_shape)
             output_video.write(warped_frame.astype('uint8'))
@@ -626,12 +617,9 @@ def lucas_kanade_faster_video_stabilization_fix_effects(
             u[boundary_idx:int(u_current_frame.shape[0]) - boundary_idx, boundary_idx: int(u_current_frame.shape[1]) - boundary_idx] += u_current_frame_mean
             v[boundary_idx:int(v_current_frame.shape[0]) - boundary_idx, boundary_idx: int(v_current_frame.shape[1]) - boundary_idx] += v_current_frame_mean
 
-            # u += u_current_frame_mean * np.ones(u.shape)
-            # v += v_current_frame_mean * np.ones(v.shape)
+            warped_frame = warp_image(gray_current_frame, u, v)
 
-            warped_frame = warp_image(gray_current_frame[start_rows:gray_current_frame.shape[0] - end_rows,
-                                      start_cols:gray_current_frame.shape[1] - end_cols], u, v)
-
+            warped_frame = warped_frame[start_rows:warped_frame.shape[0] - end_rows, start_cols:warped_frame.shape[1] - end_cols]
             warped_frame = cv2.resize(warped_frame, video_shape)
             output_video.write(warped_frame.astype('uint8'))
 
