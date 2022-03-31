@@ -1,5 +1,4 @@
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 from scipy import signal
@@ -69,6 +68,7 @@ def build_pyramid(image: np.ndarray, num_levels: int) -> list[np.ndarray]:
         decimated_image = filtered_image[::2, ::2]
         pyramid.append(decimated_image)
     return pyramid
+
 
 def lucas_kanade_step(I1: np.ndarray,
                       I2: np.ndarray,
@@ -389,14 +389,11 @@ def faster_lucas_kanade_step(I1: np.ndarray,
     dv = np.zeros(I1.shape)
     corners_image = np.zeros(I1.shape)
 
-    if I1.size < 26000:
+    if I2.shape[0] < 250:
         du, dv = lucas_kanade_step(I1, I2, window_size)
     else:
-        R = cv2.cornerHarris(I2.astype('float32'), 2, 3, 0.05)
-        # R = np.pad(R, (2,), constant_values=0)
-
-        # Threshold for an optimal value, it may vary depending on the image.
-        corners_image[R > 0.00005 * R.max()] = 1
+        R = cv2.cornerHarris(np.float32(I2), 2, 3, 0.05)
+        corners_image[R >= 0.3 * R.max()] = 1
         x_corners, y_corners = np.nonzero(corners_image)
         corners_indices = list(zip(x_corners, y_corners))
         Ix = signal.convolve2d(I2, X_DERIVATIVE_FILTER, mode='same')
@@ -581,7 +578,8 @@ def lucas_kanade_faster_video_stabilization_fix_effects(
     # converting to gray-scale
     first_frame_gray = cv2.cvtColor(first_frame, cv2.COLOR_BGR2GRAY)
     # writing the first frame to output video
-    output_video.write(first_frame_gray)
+    output_video.write(first_frame_gray[start_rows:first_frame_gray.shape[0] - end_rows,
+                           start_cols:first_frame_gray.shape[1] - end_cols])
     # resizing the first gray scale frame
     h_factor = int(np.ceil(first_frame.shape[0] / (2 ** (num_levels - 1 + 1))))
     w_factor = int(np.ceil(first_frame.shape[1] / (2 ** (num_levels - 1 + 1))))
@@ -618,8 +616,8 @@ def lucas_kanade_faster_video_stabilization_fix_effects(
             v[boundary_idx:int(v_current_frame.shape[0]) - boundary_idx, boundary_idx: int(v_current_frame.shape[1]) - boundary_idx] += v_current_frame_mean
 
             warped_frame = warp_image(gray_current_frame, u, v)
-
-            warped_frame = warped_frame[start_rows:warped_frame.shape[0] - end_rows, start_cols:warped_frame.shape[1] - end_cols]
+            warped_frame = warped_frame[start_rows:warped_frame.shape[0] - end_rows,
+                           start_cols:warped_frame.shape[1] - end_cols]
             warped_frame = cv2.resize(warped_frame, video_shape)
             output_video.write(warped_frame.astype('uint8'))
 
@@ -630,6 +628,3 @@ def lucas_kanade_faster_video_stabilization_fix_effects(
     input_video.release()
     output_video.release()
     cv2.destroyAllWindows()
-    pass
-
-
