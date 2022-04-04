@@ -5,11 +5,11 @@ import numpy as np
 import numpy.matlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-
+from PIL import Image
 
 # change IDs to your IDs.
 ID1 = "123456789"
-ID2 = "987654321"
+ID2 = "316524800"
 
 ID = "HW3_{0}_{1}".format(ID1, ID2)
 RESULTS = 'results'
@@ -40,9 +40,16 @@ def predict_particles(s_prior: np.ndarray) -> np.ndarray:
         state_drifted: np.ndarray. The prior state after drift (applying the motion model) and adding the noise.
     """
     s_prior = s_prior.astype(float)
-    state_drifted = s_prior
-    """ DELETE THE LINE ABOVE AND:
-    INSERT YOUR CODE HERE."""
+    state_drifted = np.zeros(s_prior.shape)
+    state_drifted[2:4] = s_prior[2:4]
+    state_drifted[0, :] = s_prior[0, :] + s_prior[4, :]
+    state_drifted[1, :] = s_prior[1, :] + s_prior[5, :]
+    state_drifted[4, :] = s_prior[4, :]
+    state_drifted[5, :] = s_prior[5, :]
+    for row in [0,1,4,5]:
+        noise = np.random.normal(0, 1, 100)
+        state_drifted[row] += noise
+
     state_drifted = state_drifted.astype(int)
     return state_drifted
 
@@ -59,9 +66,22 @@ def compute_normalized_histogram(image: np.ndarray, state: np.ndarray) -> np.nda
     """
     state = np.floor(state)
     state = state.astype(int)
-    hist = np.zeros(1, 16 * 16 * 16)
+    hist = np.zeros((16, 16, 16))
     """ DELETE THE LINE ABOVE AND:
         INSERT YOUR CODE HERE."""
+    x_position = state[0]
+    y_position = state[1]
+    half_width = state[2]
+    half_height = state[3]
+    image_sub_portion = image[y_position-half_height:y_position+half_height, x_position-half_width:x_position+half_width, :]
+    image_sub_portion_quantized = np.floor(image_sub_portion*(15/255))
+    image_sub_portion_quantized = image_sub_portion_quantized.astype(int)
+    for i in range(image_sub_portion_quantized.shape[0]):
+        for j in range(image_sub_portion_quantized.shape[1]):
+            val1 = image_sub_portion_quantized[i, j, 0]
+            val2 = image_sub_portion_quantized[i, j, 1]
+            val3 = image_sub_portion_quantized[i, j, 2]
+            hist[val1, val2, val3] += 1
     hist = np.reshape(hist, 16 * 16 * 16)
 
     # normalize
@@ -98,9 +118,7 @@ def bhattacharyya_distance(p: np.ndarray, q: np.ndarray) -> float:
     Return:
         distance: float. The Bhattacharyya Distance.
     """
-    distance = 0
-    """ DELETE THE LINE ABOVE AND:
-        INSERT YOUR CODE HERE."""
+    distance = np.exp(20*np.sum(np.sqrt(np.multiply(p, np.conjugate(q)))))
     return distance
 
 
