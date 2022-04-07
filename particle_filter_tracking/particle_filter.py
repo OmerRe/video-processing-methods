@@ -44,9 +44,9 @@ def predict_particles(s_prior: np.ndarray) -> np.ndarray:
     # Gaussian noise parameters
     mean = 0
     std_x_loc = 2
-    std_y_loc = 2
-    std_x_velocity = 1
-    std_y_velocity = 1
+    std_y_loc = 1
+    std_x_velocity = 0.8
+    std_y_velocity = 0.6
 
     # Physical model + noise
     state_drifted[0, :] = s_prior[0, :] + s_prior[4, :] + np.round(np.random.normal(mean, std_x_loc, size=(1, 100)))
@@ -134,30 +134,28 @@ def show_particles(image: np.ndarray, state: np.ndarray, W: np.ndarray, frame_in
     plt.title(ID + " - Frame mumber = " + str(frame_index))
 
     # Avg particle box
-    (x_avg, y_avg, w_avg, h_avg) = (np.average(state[0, :]), np.average(state[1, :]), 2*np.average(state[2, :]), 2*np.average(state[3, :]))
-
-    rect = patches.Rectangle((x_avg - w_avg/2, y_avg - h_avg/2), w_avg, h_avg, linewidth=1, edgecolor='g', facecolor='none')
+    S_avg = np.floor(np.average(state, 1, weights=W))
+    x_avg = S_avg[0] - S_avg[2]
+    y_avg = S_avg[1] - S_avg[3]
+    w_avg = S_avg[2] * 2
+    h_avg = S_avg[3] * 2
+    rect = patches.Rectangle((x_avg, y_avg), w_avg, h_avg, linewidth=1, edgecolor='g', facecolor='none')
     ax.add_patch(rect)
 
     # calculate Max particle box
     max_idx = np.argmax(W)
-    (x_max, y_max, w_max, h_max) = (state[0, max_idx], state[1, max_idx], 2*state[2, max_idx], 2*state[3, max_idx])
-
-    rect = patches.Rectangle((x_max - w_max/2, y_max - h_max/2), w_max, h_max, linewidth=1, edgecolor='r', facecolor='none')
+    x_max = state[0, max_idx] - state[2, max_idx]
+    y_max = state[1, max_idx] - state[3, max_idx]
+    w_max = state[2, max_idx] * 2
+    h_max = state[3, max_idx] * 2
+    rect = patches.Rectangle((x_max, y_max), w_max, h_max, linewidth=1, edgecolor='r', facecolor='none')
     ax.add_patch(rect)
-    plt.show(block=False)
 
+    plt.show(block=False)
     fig.savefig(os.path.join(RESULTS, ID + "-" + str(frame_index) + ".png"))
     frame_index_to_mean_state[frame_index] = [float(x) for x in [x_avg, y_avg, w_avg, h_avg]]
     frame_index_to_max_state[frame_index] = [float(x) for x in [x_max, y_max, w_max, h_max]]
     return frame_index_to_mean_state, frame_index_to_max_state
-
-# def compute_cdf(W: np.ndarray) -> np.ndarray:
-#     C = np.zeros(W.shape)
-#     C[0] = W[0]
-#     for i in range(1, N):
-#         C[i] = W[i] + C[i-1]
-#     return C
 
 def main():
     state_at_first_frame = np.matlib.repmat(s_initial, N, 1).T
@@ -166,13 +164,15 @@ def main():
     # LOAD FIRST IMAGE
     image = cv2.imread(os.path.join(IMAGE_DIR_PATH, "001.png"))
 
-    # COMPUTE NORMALIZED HISTOGRAM
+    # COMPUTE NORMALIZED HISTOGRAM - Template
     q = compute_normalized_histogram(image, s_initial)
 
     # COMPUTE NORMALIZED WEIGHTS (W) AND PREDICTOR CDFS (C)
     W = np.zeros(N)
     for i in range(N):
+        # Compute normalized histogram for each particle
         p = compute_normalized_histogram(image, S[:, i])
+        # Compute weights using bhattacharyya distance
         W[i] = bhattacharyya_distance(p, q)
     W = W/np.sum(W)
     C = np.array([np.sum(W[0:i]) for i in range(1, N+1)])
@@ -200,7 +200,9 @@ def main():
 
         # COMPUTE NORMALIZED WEIGHTS (W) AND PREDICTOR CDFS (C)
         for i in range(N):
+            # Compute normalized histogram for each particle
             p = compute_normalized_histogram(current_image, S[:, i])
+            # Compute weights using bhattacharyya distance
             W[i] = bhattacharyya_distance(p, q)
         W = W / np.sum(W)
         C = np.array([np.sum(W[0:i]) for i in range(1, N + 1)])
