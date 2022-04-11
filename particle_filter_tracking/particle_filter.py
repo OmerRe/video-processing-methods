@@ -71,7 +71,6 @@ def compute_normalized_histogram(image: np.ndarray, state: np.ndarray) -> np.nda
     state = np.floor(state)
     state = state.astype(int)
     hist = np.zeros((16, 16, 16))
-
     x, y, half_width, half_height, x_velocity, y_velocity = state
     image_sub_portion = image[y-half_height:y+half_height, x-half_width:x+half_width, :]
     image_sub_portion_quantized = np.floor(image_sub_portion*(15/255))
@@ -83,6 +82,7 @@ def compute_normalized_histogram(image: np.ndarray, state: np.ndarray) -> np.nda
             G_val = image_sub_portion_quantized[i, j, 1]
             B_val = image_sub_portion_quantized[i, j, 2]
             hist[B_val, G_val, R_val] += 1
+
     hist = np.reshape(hist, 16 * 16 * 16)
 
     # normalize
