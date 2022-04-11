@@ -137,8 +137,8 @@ def show_particles(image: np.ndarray, state: np.ndarray, W: np.ndarray, frame_in
     S_avg = np.floor(np.average(state, 1, weights=W))
     x_avg = S_avg[0] - S_avg[2]
     y_avg = S_avg[1] - S_avg[3]
-    w_avg = S_avg[2] * 2
-    h_avg = S_avg[3] * 2
+    w_avg = s_initial[2] * 2  # the width does not change from its initial value
+    h_avg = s_initial[3] * 2  # the height does not change from its initial value
     rect = patches.Rectangle((x_avg, y_avg), w_avg, h_avg, linewidth=1, edgecolor='g', facecolor='none')
     ax.add_patch(rect)
 
@@ -146,8 +146,8 @@ def show_particles(image: np.ndarray, state: np.ndarray, W: np.ndarray, frame_in
     max_idx = np.argmax(W)
     x_max = state[0, max_idx] - state[2, max_idx]
     y_max = state[1, max_idx] - state[3, max_idx]
-    w_max = state[2, max_idx] * 2
-    h_max = state[3, max_idx] * 2
+    w_max = s_initial[2] * 2  # the width does not change from its initial value
+    h_max = s_initial[3] * 2  # the height does not change from its initial value
     rect = patches.Rectangle((x_max, y_max), w_max, h_max, linewidth=1, edgecolor='r', facecolor='none')
     ax.add_patch(rect)
 
