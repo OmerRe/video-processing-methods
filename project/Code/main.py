@@ -12,7 +12,12 @@ from Code.video_stabilizer import stabilize_video
 CONFIG = {
     'ID_1': 302828991,
     'ID_2': 316524800,
-    'SMOOTHING_RADIUS': 50
+    'MAX_CORNERS': 500,
+    'QUALITY_LEVEL': 0.01,
+    'MIN_DISTANCE': 30,
+    'BLOCK_SIZE': 3,
+    'SMOOTHING_RADIUS': 5,
+
 }
 
 RUNNING_TIME = {}
@@ -20,7 +25,6 @@ RUNNING_TIME = {}
 def main(running_time, config):
     # import video
     input_video = cv2.VideoCapture('../Inputs/INPUT.mp4')
-
     # video stabilization
     start_time = time.time()
     stabilize_video(input_video, config)
