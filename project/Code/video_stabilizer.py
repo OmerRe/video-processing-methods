@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from Code.utils import extract_video_parameters, release_video, load_video, write_video, fixBorder, convert_to_gray
 
 
-def stabilize_video(input_video: cv2.VideoCapture, config: dict) -> None:
+def stabilize_video(input_video: cv2.VideoCapture, config: dict) -> list:
     """Creating a stabilized video from an arbitrary input video.
     Args:
         input_video: cv2.VideoCapture. Video we want to stabilize.
@@ -30,6 +30,8 @@ def stabilize_video(input_video: cv2.VideoCapture, config: dict) -> None:
     write_video(f'../Outputs/stabilized_{config["ID_1"]}_{config["ID_2"]}.avi', stabilized_frames,
                 video_params['fps'], (video_params['w'], video_params['h']), is_color=True)
     print("Video Stabilization Finished")
+
+    return stabilized_frames
 
 
 def find_motion_between_frames(video_params: dict, video_frames: list,  config: dict) -> np.ndarray:

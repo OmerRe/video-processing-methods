@@ -6,6 +6,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from collections import OrderedDict
 from PIL import Image
+
+from Code.backround_subtractor import subtruct_background
 from Code.video_stabilizer import stabilize_video
 
 
@@ -27,12 +29,13 @@ def main(running_time, config):
     input_video = cv2.VideoCapture('../Inputs/INPUT.mp4')
     # video stabilization
     start_time = time.time()
-    stabilize_video(input_video, config)
+    stabilized_frames = stabilize_video(input_video, config)
     RUNNING_TIME['time_to_stabilize'] = time.time() - start_time
 
     # video background subtraction
-    # start_time = time.time()
-    # RUNNING_TIME['time_to_binary'] = time.time() - start_time
+    start_time = time.time()
+    frames_without_background = subtruct_background(stabilized_frames)
+    RUNNING_TIME['time_to_binary'] = time.time() - start_time
 
     return
 
