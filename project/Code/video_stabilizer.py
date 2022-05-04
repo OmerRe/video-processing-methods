@@ -39,20 +39,29 @@ def find_motion_between_frames(video_params: dict, video_frames: list,  config: 
 
     for frame_idx, current_frame in enumerate(video_frames[1:]):
         # Detecting feature points in previous frame
-        prev_frame_pts = cv2.goodFeaturesToTrack(prev_frame_gray,
-                                                 maxCorners=config['MAX_CORNERS'],
-                                                 qualityLevel=config['QUALITY_LEVEL'],
-                                                 minDistance=config['MIN_DISTANCE'],
-                                                 blockSize=config['BLOCK_SIZE'])
+        prev_frame_pts = []
+        curr_frame_pts = []
         current_frame_gray = convert_to_gray(current_frame)
-
         # Calculating optical flow and keeping only the valid features points
-        curr_frame_pts, status, err = cv2.calcOpticalFlowPyrLK(prev_frame_gray, current_frame_gray, prev_frame_pts, None)
-        idx = np.where(status == 1)[0]
-        prev_frame_pts, curr_frame_pts = prev_frame_pts[idx], curr_frame_pts[idx]
+        detector = cv2.FastFeatureDetector.create()
+        orb = cv2.ORB_create()
+        kp1 = detector.detect(prev_frame_gray, None)
+        kp2 = detector.detect(current_frame_gray, None)
+        kp1, des1 = orb.compute(prev_frame_gray, kp1)
+        kp2, des2 = orb.compute(current_frame_gray, kp2)
+        bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+        matches = bf.match(des1, des2)
+        matches = sorted(matches, key=lambda x: x.distance)
+        # img3 = cv2.drawMatches(prev_frame_gray, kp1, current_frame_gray, kp2, matches, None,
+        #                       flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+        # plt.imshow(img3), plt.show()
 
-        # Finding transformation matrix
-        transform_matrix, _ = cv2.findHomography(prev_frame_pts, curr_frame_pts)
+        prev_frame_pts.append(np.float32([kp1[match.queryIdx].pt for match in matches]).reshape(-1, 1, 2))
+        curr_frame_pts.append(np.float32([kp2[match.trainIdx].pt for match in matches]).reshape(-1, 1, 2))
+        prev_frame_pts = np.squeeze(np.array(prev_frame_pts))
+        curr_frame_pts = np.squeeze(np.array(curr_frame_pts))
+
+        transform_matrix, mask = cv2.findHomography(prev_frame_pts, curr_frame_pts, cv2.RANSAC, 5.0)
         transforms[frame_idx] = transform_matrix.flatten()
 
         print(f"Video Stabilizing: calculating transformation for frame: {frame_idx + 1} "

@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from scipy.stats import gaussian_kde
 
 def extract_video_parameters(input_video: cv2.VideoCapture) -> dict:
     fourcc = int(input_video.get(cv2.CAP_PROP_FOURCC))
@@ -48,6 +49,7 @@ def write_video(output_path: str, frames: list, fps: int, out_size: tuple, is_co
     for frame in frames:
         video_out.write(frame)
     video_out.release()
+    cv2.destroyAllWindows()
 
 def fixBorder(frame):
     (h, w, channels) = frame.shape
@@ -55,4 +57,3 @@ def fixBorder(frame):
     T = cv2.getRotationMatrix2D((w / 2, h / 2), 0, 1.04)
     frame = cv2.warpAffine(frame, T, (w, h))
     return frame
-
