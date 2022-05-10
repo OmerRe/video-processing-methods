@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-from Code.utils import extract_video_parameters
+from Code.utils import extract_video_parameters, write_video, load_video, apply_mask_on_color_frame
 
 
 def subtruct_background_by_median(input_frames):
@@ -79,10 +79,76 @@ def subtruct_background_by_MOG2(input_frames):
             if cv2.waitKey(30) == ord('e'):
                 break
 
+def background_subtraction_ver15(input_video: cv2.VideoCapture, config: dict):
+    print("Starting Background Subtraction...")
+    video_params = extract_video_parameters(input_video)
+    video_frames_bgr = load_video(input_video, color_space='bgr')
+    video_frames_hsv = load_video(input_video, color_space='hsv')
+    n_frames = len(video_frames_bgr)
 
+    backSub = cv2.createBackgroundSubtractorKNN()
+    mask_list = np.zeros((n_frames, video_params['h'], video_params['w'])).astype(np.uint8)
+    masks = np.zeros((n_frames, video_params['h'], video_params['w'])).astype(np.uint8)
+    after_mask = np.zeros((n_frames, video_params['h'], video_params['w'], 3)).astype(np.uint8)
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
+    print(f"[BS] - BackgroundSubtractorKNN Studying Frames history")
+    for j in range(5):
+        print(f"[BS] - BackgroundSubtractorKNN {j + 1} / 8 pass")
+        for index_frame, frame in enumerate(video_frames_hsv):
+            frame = cv2.GaussianBlur(frame, (9, 9), 0)
+            frame_sv = frame[:, :, 1:]
+            fgMask = backSub.apply(frame_sv)
+            fgMask = (fgMask > 200).astype(np.uint8)
+            mask_list[index_frame] = fgMask
+    print(f"[BS] - BackgroundSubtractorKNN Finished")
+
+    '''Collecting colors for building body & shoes KDEs'''
+    for frame_index, frame in enumerate(video_frames_bgr):
+        print(f"[BS] - Collecting colors for building body & shoes KDEs , Frame: {frame_index + 1} / {n_frames}")
+        blue_frame, _, _ = cv2.split(frame)
+        mask_for_frame = mask_list[frame_index].astype(np.uint8)
+        # mask_for_frame = cv2.GaussianBlur(mask_for_frame, (7, 7), 0)
+        mask_for_frame = cv2.medianBlur(mask_for_frame, 7)
+        mask_for_frame = cv2.morphologyEx(mask_for_frame, cv2.MORPH_CLOSE, kernel)
+        mask_for_frame = cv2.morphologyEx(mask_for_frame, cv2.MORPH_OPEN, kernel)
+        mask_for_frame = cv2.medianBlur(mask_for_frame, 7)
+
+        gradient = cv2.morphologyEx(mask_for_frame, cv2.MORPH_GRADIENT, kernel)
+        # gradient = cv2.morphologyEx(gradient, cv2.MORPH_CLOSE, kernel)
+        contours, _ = cv2.findContours(gradient, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        contours.sort(key=cv2.contourArea, reverse=True)
+        mask = np.zeros(mask_for_frame.shape)
+        mask = cv2.fillPoly(mask, pts=[contours[0]], color=1)
+        # mask = cv2.drawContours(mask, [contours[0]], contourIdx=-1, color=255, thickness=cv2.FILLED)
+        blue_mask = (blue_frame < 140).astype(np.uint8)
+        mask = (mask * blue_mask).astype(np.uint8)
+
+        # masks[frame_index] = scale_matrix_0_to_255(mask)
+        frame_after_mask = apply_mask_on_color_frame(frame, mask)
+        masks[frame_index] = mask * 255
+        after_mask[frame_index] = frame_after_mask
+
+    write_video(f'../Outputs/binary_{config["ID_1"]}_{config["ID_2"]}.avi', masks,
+                video_params['fps'], (video_params['w'], video_params['h']), is_color=False)
+    write_video(f'../Outputs/extracted_{config["ID_1"]}_{config["ID_2"]}.avi', after_mask,
+                video_params['fps'], (video_params['w'], video_params['h']), is_color=True)
+
+
+CONFIG = {
+    'ID_1': 302828991,
+    'ID_2': 316524800,
+    'MAX_CORNERS': 500,
+    'QUALITY_LEVEL': 0.01,
+    'MIN_DISTANCE': 30,
+    'BLOCK_SIZE': 3,
+    'SMOOTHING_RADIUS': 5,
+
+}
 input_video = cv2.VideoCapture('../Outputs/stabilized_302828991_316524800.avi')
-subtruct_background_by_median(input_video)
+# subtruct_background_by_median(input_video)
 # subtruct_background_by_MOG2(input_video)
+background_subtraction_ver15(input_video, CONFIG)
 # Release video object
 input_video.release()
 

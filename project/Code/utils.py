@@ -23,7 +23,7 @@ def load_video(video: cv2.VideoCapture, color_space: str = 'bgr'):
             frames.append(curr)
         elif color_space == 'yuv':
             frames.append(cv2.cvtColor(curr, cv2.COLOR_BGR2YUV))
-        elif color_space == 'bw':
+        elif color_space == 'gray':
             frames.append(cv2.cvtColor(curr, cv2.COLOR_BGR2GRAY))
         else:
             frames.append(cv2.cvtColor(curr, cv2.COLOR_BGR2HSV))
@@ -57,3 +57,22 @@ def fixBorder(frame):
     T = cv2.getRotationMatrix2D((w / 2, h / 2), 0, 1.04)
     frame = cv2.warpAffine(frame, T, (w, h))
     return frame
+
+def scale_matrix_0_to_255(input_matrix):
+    if input_matrix.dtype == np.bool:
+        input_matrix = np.uint8(input_matrix)
+    input_matrix = input_matrix.astype(np.uint8)
+    scaled = 255 * (input_matrix - np.min(input_matrix)) / np.ptp(input_matrix)
+    return np.uint8(scaled)
+
+def apply_mask_on_color_frame(frame, mask):
+    frame_after_mask = np.copy(frame)
+    frame_after_mask[:, :, 0] = frame_after_mask[:, :, 0] * mask
+    frame_after_mask[:, :, 1] = frame_after_mask[:, :, 1] * mask
+    frame_after_mask[:, :, 2] = frame_after_mask[:, :, 2] * mask
+    return frame_after_mask
+
+def kernel(size: int, shape: str):
+    if shape == 'rect':
+        return cv2.getStructuringElement(cv2.MORPH_RECT, (size, size))
+    return cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (size, size))
