@@ -140,8 +140,6 @@ background_image = cv2.imread('../Inputs/background.jpg')
 # subtruct_background_by_median(input_video)
 # subtruct_background_by_MOG2(input_video)
 video_matting(input_video, binary_video, background_image)
-# Release video object
-input_video.release()
-binary_video.release()
+
 # Destroy all windows
 cv2.destroyAllWindows()
