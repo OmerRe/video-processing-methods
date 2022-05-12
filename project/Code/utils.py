@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 from scipy.stats import gaussian_kde
+import GeodisTK
 
 def extract_video_parameters(input_video: cv2.VideoCapture) -> dict:
     fourcc = int(input_video.get(cv2.CAP_PROP_FOURCC))
@@ -76,3 +77,15 @@ def kernel(size: int, shape: str):
     if shape == 'rect':
         return cv2.getStructuringElement(cv2.MORPH_RECT, (size, size))
     return cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (size, size))
+
+def geodesic_distance_2d(I, S, lamb, iter):
+    '''
+    get 2d geodesic disntance by raser scanning.
+    I: input image, can have multiple channels. Type should be np.float32.
+    S: binary image where non-zero pixels are used as seeds. Type should be np.uint8.
+    lamb: weighting betwween 0.0 and 1.0
+          if lamb==0.0, return spatial euclidean distance without considering gradient
+          if lamb==1.0, the distance is based on gradient only without using spatial distance
+    iter: number of iteration for raster scanning.
+    '''
+    return GeodisTK.geodesic2d_raster_scan(I, S, lamb, iter)
