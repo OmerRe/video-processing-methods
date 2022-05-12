@@ -79,7 +79,7 @@ def subtruct_background_by_MOG2(input_frames):
             if cv2.waitKey(30) == ord('e'):
                 break
 
-def background_subtraction_ver15(input_video: cv2.VideoCapture, config: dict):
+def subtruct_background(input_video: cv2.VideoCapture, config: dict):
     print("Starting Background Subtraction...")
     video_params = extract_video_parameters(input_video)
     video_frames_bgr = load_video(input_video, color_space='bgr')
@@ -135,22 +135,26 @@ def background_subtraction_ver15(input_video: cv2.VideoCapture, config: dict):
                 video_params['fps'], (video_params['w'], video_params['h']), is_color=True)
 
 
-CONFIG = {
-    'ID_1': 302828991,
-    'ID_2': 316524800,
-    'MAX_CORNERS': 500,
-    'QUALITY_LEVEL': 0.01,
-    'MIN_DISTANCE': 30,
-    'BLOCK_SIZE': 3,
-    'SMOOTHING_RADIUS': 5,
 
-}
-input_video = cv2.VideoCapture('../Outputs/stabilized_302828991_316524800.avi')
-# subtruct_background_by_median(input_video)
-# subtruct_background_by_MOG2(input_video)
-background_subtraction_ver15(input_video, CONFIG)
-# Release video object
-input_video.release()
 
-# Destroy all windows
-cv2.destroyAllWindows()
+
+##### TODO: Remove before assign
+# CONFIG = {
+#     'ID_1': 302828991,
+#     'ID_2': 316524800,
+#     'MAX_CORNERS': 500,
+#     'QUALITY_LEVEL': 0.01,
+#     'MIN_DISTANCE': 30,
+#     'BLOCK_SIZE': 3,
+#     'SMOOTHING_RADIUS': 5,
+#
+# }
+# input_video = cv2.VideoCapture('../Outputs/stabilized_302828991_316524800.avi')
+# # subtruct_background_by_median(input_video)
+# # subtruct_background_by_MOG2(input_video)
+# background_subtraction_ver15(input_video, CONFIG)
+# # Release video object
+# input_video.release()
+#
+# # Destroy all windows
+# cv2.destroyAllWindows()

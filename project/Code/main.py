@@ -8,9 +8,8 @@ from collections import OrderedDict
 from PIL import Image
 
 from Code.backround_subtractor import subtruct_background
+from Code.video_matting import video_matting
 from Code.video_stabilizer import stabilize_video
-from Code.background_subtructer import background_subtraction, method3, method4, method5, method6, method7
-
 
 
 CONFIG = {
@@ -34,11 +33,20 @@ def main(running_time, config):
     stabilized_frames = stabilize_video(input_video, config)
     RUNNING_TIME['time_to_stabilize'] = time.time() - start_time
     stabilized_video = cv2.VideoCapture('../Outputs/stabilized_302828991_316524800.avi')
-    method7()
+
     # video background subtraction
     start_time = time.time()
-    frames_without_background = subtruct_background(stabilized_frames)
+    without_background_frames = subtruct_background(stabilized_video, config)
     RUNNING_TIME['time_to_binary'] = time.time() - start_time
+
+    # video matting
+    #TODO: Refactor
+    start_time = time.time()
+    input_video = '../Outputs/stabilized_302828991_316524800.avi'
+    binary_video = '../Outputs/binary_302828991_316524800.avi'
+    background_image = '../Inputs/background.jpg'
+    matted_video_frames = video_matting(input_video, binary_video, background_image)
+    RUNNING_TIME['matting + alpha'] = time.time() - start_time
 
     return
 

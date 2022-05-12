@@ -134,12 +134,13 @@ CONFIG = {
     'SMOOTHING_RADIUS': 5,
 
 }
-input_video = '../Outputs/stabilized_302828991_316524800.avi'
-binary_video = '../Outputs/binary.avi'
-background_image = cv2.imread('../Inputs/background.jpg')
-# subtruct_background_by_median(input_video)
-# subtruct_background_by_MOG2(input_video)
-video_matting(input_video, binary_video, background_image)
-
-# Destroy all windows
-cv2.destroyAllWindows()
+##### TODO: Remove before assign
+# input_video = '../Outputs/stabilized_302828991_316524800.avi'
+# binary_video = '../Outputs/binary.avi'
+# background_image = cv2.imread('../Inputs/background.jpg')
+# # subtruct_background_by_median(input_video)
+# # subtruct_background_by_MOG2(input_video)
+# video_matting(input_video, binary_video, background_image)
+#
+# # Destroy all windows
+# cv2.destroyAllWindows()
