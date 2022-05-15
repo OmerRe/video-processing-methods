@@ -134,6 +134,7 @@ def subtruct_background(input_video: cv2.VideoCapture, config: dict):
     write_video(f'../Outputs/extracted_{config["ID_1"]}_{config["ID_2"]}.avi', after_mask,
                 video_params['fps'], (video_params['w'], video_params['h']), is_color=True)
 
+    return masks, after_mask
 
 
 
