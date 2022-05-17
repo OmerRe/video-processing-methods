@@ -1,8 +1,8 @@
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
-from Code.utils import extract_video_parameters, write_video, load_video, apply_mask_on_color_frame, geodesic_distance_2d
+from Code.utils import geodesic_distance_2d, convert_frames_color
+
 
 def create_scribbles(mask: np.ndarray, type: str, num_of_points: int) -> np.ndarray:
     if type == 'foreground':
@@ -20,25 +20,16 @@ def kde_scipy(x, x_grid, bandwidth=0.2, **kwargs):
     kde = gaussian_kde(x, bw_method=bandwidth, **kwargs)
     return kde.evaluate(x_grid)
 
-def video_matting(input_stabilize_video_path, binary_video_path, new_background_path):
-    # Read input video
-    stabilized_video = cv2.VideoCapture(input_stabilize_video_path)
-    binary_video = cv2.VideoCapture(binary_video_path)
-    new_background = cv2.imread(new_background_path)
-
-    frames_bgr = load_video(stabilized_video, color_space='bgr')
-    frames_hsv = load_video(stabilized_video, color_space='hsv')
-    frames_binary = load_video(binary_video, color_space='gray')
-
-    # Get specific parameters
-    stabilized_parameters = extract_video_parameters(stabilized_video)
-    binary_parameters = extract_video_parameters(binary_video)
-    n_frames = stabilized_parameters['n_frames']
-    w = stabilized_parameters['w']
-    h = stabilized_parameters['h']
+def video_matting(stabilized_frames, binary_frames, background_image, config):
+    frames_bgr = stabilized_frames
+    frames_hsv = convert_frames_color(stabilized_frames, color_space=cv2.COLOR_BGR2HSV)
+    # frames_binary = convert_frames_color(binary_frames, color_space=cv2.COLOR_BGR2GRAY)
+    n_frames = config['video_params']['n_frames']
+    w = config['video_params']['w']
+    h = config['video_params']['h']
 
     '''Resize new background'''
-    new_background = cv2.resize(new_background, (w, h))
+    new_background = cv2.resize(background_image, (w, h))
     num_of_points = 100
     '''Starting Matting Process'''
     full_matted_frames_list, alpha_frames_list = [], []
@@ -46,7 +37,7 @@ def video_matting(input_stabilize_video_path, binary_video_path, new_background_
         print(f'Stage 3, Matting: - Frame: {frame_index} / {n_frames}')
         _, _, gray_frame = cv2.split(frames_hsv[frame_index])
         bgr_frame = frames_bgr[frame_index]
-        binary_frame = frames_binary[frame_index]
+        binary_frame = binary_frames[frame_index]
         binary_frame = ((binary_frame > 200).astype(np.uint8))*255
 
         '''Resizing frames'''
@@ -162,7 +153,4 @@ def video_matting(input_stabilize_video_path, binary_video_path, new_background_
         alpha_frame = (alpha_frame * 255).astype(np.uint8)
         alpha_frames_list.append(alpha_frame)
 
-    write_video(output_path='../Outputs/matted.avi', frames=full_matted_frames_list, fps=stabilized_parameters['fps'], out_size=(w, h),
-                is_color=True)
-    write_video(output_path='../Outputs/alpha.avi', frames=alpha_frames_list, fps=stabilized_parameters['fps'], out_size=(w, h),
-                is_color=False)
+        return full_matted_frames_list, alpha_frames_list

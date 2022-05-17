@@ -1,14 +1,9 @@
-import os
 import cv2
-import time
-import json
 import numpy as np
-import matplotlib.pyplot as plt
-
-from Code.utils import extract_video_parameters, release_video, load_video, write_video, fixBorder, convert_to_gray
+from Code.utils import fixBorder, convert_to_gray
 
 
-def stabilize_video(input_video: cv2.VideoCapture, config: dict) -> list:
+def stabilize_video(video_frames: list, config: dict) -> list:
     """Creating a stabilized video from an arbitrary input video.
     Args:
         input_video: cv2.VideoCapture. Video we want to stabilize.
@@ -19,16 +14,9 @@ def stabilize_video(input_video: cv2.VideoCapture, config: dict) -> list:
 
     """
     print("Starting Video Stabilization...")
-    video_params = extract_video_parameters(input_video)
-    video_frames = load_video(input_video)
-
-    transforms = find_motion_between_frames(video_params, video_frames, config)
+    transforms = find_motion_between_frames(config['video_params'], video_frames, config)
     transforms_smooth = calc_smooth_transforms(config, transforms)
-    stabilized_frames = apply_smooth_motion_to_frames(video_params, video_frames, transforms_smooth)
-
-    release_video(input_video)
-    write_video(f'../Outputs/stabilized_{config["ID_1"]}_{config["ID_2"]}.avi', stabilized_frames,
-                video_params['fps'], (video_params['w'], video_params['h']), is_color=True)
+    stabilized_frames = apply_smooth_motion_to_frames(config['video_params'], video_frames, transforms_smooth)
     print("Video Stabilization Finished")
 
     return stabilized_frames

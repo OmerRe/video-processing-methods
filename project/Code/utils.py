@@ -1,7 +1,19 @@
 import cv2
 import numpy as np
-from scipy.stats import gaussian_kde
 import GeodisTK
+
+CONFIG = {
+    'ID_1': 302828991,
+    'ID_2': 316524800,
+    'BACKGROUND_IMAGE_PATH': '../Inputs/background.jpg',
+    'MAX_CORNERS': 500,
+    'QUALITY_LEVEL': 0.01,
+    'MIN_DISTANCE': 30,
+    'BLOCK_SIZE': 3,
+    'SMOOTHING_RADIUS': 5,
+}
+
+RUNNING_TIME = {}
 
 def extract_video_parameters(input_video: cv2.VideoCapture) -> dict:
     fourcc = int(input_video.get(cv2.CAP_PROP_FOURCC))
@@ -43,10 +55,12 @@ def release_video(video: cv2.VideoCapture) -> None:
     video.release()
     cv2.destroyAllWindows()
 
-def write_video(output_path: str, frames: list, fps: int, out_size: tuple, is_color: bool) -> None:
+def write_video(output_path: str, frames: list, is_color: bool) -> None:
     # fourcc = cv2.VideoWriter_fourcc(*'XVID')
     fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-    video_out = cv2.VideoWriter(output_path, fourcc, fps, out_size, isColor=is_color)
+    video_out = cv2.VideoWriter(f'../Outputs/{output_path}_{CONFIG["ID_1"]}_{CONFIG["ID_2"]}.avi',
+                                fourcc, CONFIG['video_params']['fps'],
+                                (CONFIG['video_params']['w'], CONFIG['video_params']['h']), isColor=is_color)
     for frame in frames:
         video_out.write(frame)
     video_out.release()
@@ -89,3 +103,10 @@ def geodesic_distance_2d(I, S, lamb, iter):
     iter: number of iteration for raster scanning.
     '''
     return GeodisTK.geodesic2d_raster_scan(I, S, lamb, iter)
+
+def convert_frames_color(frames: list, color_space: int):
+    converted_frames = []
+    for frame in frames:
+            converted_frames.append(cv2.cvtColor(frame, color_space))
+
+    return converted_frames

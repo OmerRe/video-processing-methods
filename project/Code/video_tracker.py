@@ -1,4 +1,3 @@
-import json
 import os
 import cv2
 import numpy as np
@@ -6,14 +5,13 @@ import numpy.matlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
-# SET NUMBER OF PARTICLES
-N = 100
-
+N = 80
+resize_scale = 4
 # Initial Settings
-s_initial = [250,    # x center
-             600,    # y center
-              150,    # half width  #Todo calc dynamic BB
-              400,    # half height
+s_initial = [250/resize_scale,    # x center
+             600/resize_scale,    # y center
+              150/resize_scale,    # half width  #Todo calc dynamic BB
+              400/resize_scale,    # half height
                0,    # velocity x
                0]    # velocity y
 
@@ -34,15 +32,17 @@ def predict_particles(s_prior: np.ndarray) -> np.ndarray:
     # Gaussian noise parameters
     mean = 0
     std_x_loc = 2
-    std_y_loc = 1
+    std_y_loc = 0.3
     std_x_velocity = 0.8
-    std_y_velocity = 0.6
+    std_y_velocity = 0.2
 
     # Physical model + noise
-    state_drifted[0, :] = s_prior[0, :] + s_prior[4, :] + np.round(np.random.normal(mean, std_x_loc, size=(1, 100)))
-    state_drifted[1, :] = s_prior[1, :] + s_prior[5, :] + np.round(np.random.normal(mean, std_y_loc, size=(1, 100)))
-    state_drifted[4, :] = s_prior[4, :] + np.round(np.random.normal(mean, std_x_velocity, size=(1, 100)))
-    state_drifted[5, :] = s_prior[5, :] + np.round(np.random.normal(mean, std_y_velocity, size=(1, 100)))
+    state_drifted[0, :] = s_prior[0, :] + s_prior[4, :] + np.round(np.random.normal(mean, std_x_loc, size=(1, N)))
+    state_drifted[1, :] = s_prior[1, :] + s_prior[5, :] + np.round(np.random.normal(mean, std_y_loc, size=(1, N)))
+    state_drifted[2, :] = s_prior[2, :] + np.round(np.random.normal(mean, std_x_velocity, size=(1, N)))
+    state_drifted[3, :] = s_prior[3, :] + np.round(np.random.normal(mean, std_x_velocity, size=(1, N)))
+    state_drifted[4, :] = s_prior[4, :] + np.round(np.random.normal(mean, std_x_velocity, size=(1, N)))
+    state_drifted[5, :] = s_prior[5, :] + np.round(np.random.normal(mean, std_y_velocity, size=(1, N)))
 
     state_drifted = state_drifted.astype(int)
     return state_drifted
@@ -60,10 +60,10 @@ def compute_normalized_histogram(image: np.ndarray, state: np.ndarray) -> np.nda
     """
     state = np.floor(state)
     state = state.astype(int)
-    hist = np.zeros((16, 16, 16))
+    hist = np.zeros((8, 8, 8))
     x, y, half_width, half_height, x_velocity, y_velocity = state
     image_sub_portion = image[max(0,y-half_height):min(image.shape[0],y+half_height), max(0,x-half_width): min(image.shape[1], x+half_width), :]
-    image_sub_portion_quantized = np.floor(image_sub_portion*(15/255))
+    image_sub_portion_quantized = np.floor(image_sub_portion*(7/255))
     image_sub_portion_quantized = image_sub_portion_quantized.astype(int)
 
     for i in range(image_sub_portion_quantized.shape[0]):
@@ -73,7 +73,7 @@ def compute_normalized_histogram(image: np.ndarray, state: np.ndarray) -> np.nda
             B_val = image_sub_portion_quantized[i, j, 2]
             hist[B_val, G_val, R_val] += 1
 
-    hist = np.reshape(hist, 16 * 16 * 16)
+    hist = np.reshape(hist, 8 * 8 * 8)
 
     # normalize
     hist = hist/np.sum(hist)
@@ -116,8 +116,9 @@ def bhattacharyya_distance(p: np.ndarray, q: np.ndarray) -> float:
 
 
 def show_particles(image: np.ndarray, state: np.ndarray, W: np.ndarray, frame_index: int,
-                  frame_index_to_mean_state: dict, frame_index_to_max_state: dict,
-                  ) -> tuple:
+                  frame_index_to_mean_state: dict, frame_index_to_max_state: dict, frame_index_agg_states:dict
+                  ) -> (np.ndarray, dict):
+    state = state * resize_scale
     fig, ax = plt.subplots(1)
     image = image[:, :, ::-1]
     plt.imshow(image)
@@ -127,8 +128,8 @@ def show_particles(image: np.ndarray, state: np.ndarray, W: np.ndarray, frame_in
     S_avg = np.floor(np.average(state, 1, weights=W))
     x_avg = S_avg[0] - S_avg[2]
     y_avg = S_avg[1] - S_avg[3]
-    w_avg = s_initial[2] * 2  # the width does not change from its initial value
-    h_avg = s_initial[3] * 2  # the height does not change from its initial value
+    w_avg = S_avg[2] * 2 # the width does not change from its initial value
+    h_avg = S_avg[3] * 2  # the height does not change from its initial value
     rect = patches.Rectangle((x_avg, y_avg), w_avg, h_avg, linewidth=1, edgecolor='g', facecolor='none')
     ax.add_patch(rect)
 
@@ -136,23 +137,36 @@ def show_particles(image: np.ndarray, state: np.ndarray, W: np.ndarray, frame_in
     max_idx = np.argmax(W)
     x_max = state[0, max_idx] - state[2, max_idx]
     y_max = state[1, max_idx] - state[3, max_idx]
-    w_max = s_initial[2] * 2  # the width does not change from its initial value
-    h_max = s_initial[3] * 2  # the height does not change from its initial value
+    w_max = state[2, max_idx] * 2  # the width does not change from its initial value
+    h_max = state[3, max_idx] * 2  # the height does not change from its initial value
     rect = patches.Rectangle((x_max, y_max), w_max, h_max, linewidth=1, edgecolor='r', facecolor='none')
+    ax.add_patch(rect)
+
+    # calculate Max particle box
+    x_agg = (x_max + x_avg)/2
+    y_agg = (y_max + y_avg)/2
+    w_agg = (w_max + w_avg)/2 # the width does not change from its initial value
+    h_agg = (h_max + h_avg)/2 # the height does not change from its initial value
+    rect = patches.Rectangle((x_agg, y_agg), w_agg, h_agg, linewidth=1, edgecolor='b', facecolor='none')
     ax.add_patch(rect)
 
     plt.show(block=False)
     fig.savefig(os.path.join('../Temp/', str(frame_index) + ".png"))
     frame_index_to_mean_state[frame_index] = [float(x) for x in [x_avg, y_avg, w_avg, h_avg]]
     frame_index_to_max_state[frame_index] = [float(x) for x in [x_max, y_max, w_max, h_max]]
-    return frame_index_to_mean_state, frame_index_to_max_state
+    frame_index_agg_states[frame_index] = [float(x) for x in [x_agg, y_agg, w_agg, h_agg]]
+    image_copy = image.copy()
+    frame = cv2.rectangle(image_copy,(int(x_agg), int(y_agg)), (int(x_agg+w_agg), int(y_agg+h_agg)),(0,255,0), 3)
+    return (frame, frame_index_agg_states)
 
-def track_object(video_frames):
+def track_object(extracted_frames, matted_frames):
     state_at_first_frame = np.matlib.repmat(s_initial, N, 1).T
     S = predict_particles(state_at_first_frame)
 
     # LOAD FIRST IMAGE
-    image = video_frames[0]
+    image = extracted_frames[0]
+    original_shape = image.shape
+    image = cv2.resize(image, (int(original_shape[1]/resize_scale), int(original_shape[0]/resize_scale)))
 
     # COMPUTE NORMALIZED HISTOGRAM - Template
     q = compute_normalized_histogram(image, s_initial)
@@ -168,11 +182,12 @@ def track_object(video_frames):
     C = np.array([np.sum(W[0:i]) for i in range(1, N+1)])
 
     images_processed = 1
-
+    output_frames = []
     frame_index_to_avg_state = {}
     frame_index_to_max_state = {}
-    for frame in video_frames[1:]:
-
+    frame_index_agg_states = {}
+    for idx, frame in enumerate(extracted_frames[1:]):
+        frame = cv2.resize(frame, (int(original_shape[1] / resize_scale), int(original_shape[0] / resize_scale)))
         S_prev = S
 
         # LOAD NEW IMAGE FRAME
@@ -195,11 +210,30 @@ def track_object(video_frames):
 
         # CREATE DETECTOR PLOTS
         images_processed += 1
-        if 0 == images_processed%10:
-            frame_index_to_avg_state, frame_index_to_max_state = show_particles(
-                current_image, S, W, images_processed, frame_index_to_avg_state, frame_index_to_max_state)
+        frame_with_bb, list_bb = show_particles(matted_frames[idx], S, W, images_processed, frame_index_to_avg_state, frame_index_to_max_state, frame_index_agg_states)
+        output_frames.append(frame_with_bb)
 
-    with open('../Outputs/frame_index_to_avg_state.json', 'w') as f:
-        json.dump(frame_index_to_avg_state, f, indent=4)
-    with open('../Outputs/frame_index_to_max_state.json', 'w') as f:
-        json.dump(frame_index_to_max_state, f, indent=4)
+        return output_frames, list_bb
+
+
+# ##### TODO: Remove before assign
+# CONFIG = {
+#     'ID_1': 302828991,
+#     'ID_2': 316524800,
+#     'MAX_CORNERS': 500,
+#     'QUALITY_LEVEL': 0.01,
+#     'MIN_DISTANCE': 30,
+#     'BLOCK_SIZE': 3,
+#     'SMOOTHING_RADIUS': 5,
+#
+# }
+# input_video = cv2.VideoCapture('../Temp/extracted_302828991_316524800.avi')
+# video_params = extract_video_parameters(input_video)
+# video_frames = load_video(input_video)
+#
+# track_object(video_frames)
+# # Release video object
+# input_video.release()
+#
+# # Destroy all windows
+# cv2.destroyAllWindows()
